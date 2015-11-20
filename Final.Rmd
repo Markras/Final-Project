@@ -1,0 +1,313 @@
+---
+title: "Impact of the type of evaluated business on the perception of the review and the reviewer"
+output: pdf_document
+fontsize: 10pt
+---
+
+#Coursera Final Data science Project - MK - 20.11.2015
+
+##Introduction
+My project aims to explore possible correlations between a given type of business activity (e.g. Financial Services from the business dataset) and the evaluation of reviews of a given business type (votes from the review dataset) as well as the impact that reviewing a given type of business activity has on the perception of the user by the community (compliments from the user dataset). In other words I want to see for example whether the reviews of positively associated businesses (e.g. hotels) tend to be more likely tagged as "funny" than the reviews of financial institutions, and whether frequent churchgoers receive more compliments than their colleagues frequenting only restaurants. More generally, my hypothesis is that the evaluation of a given review is "object dependent" or that we can infer how the review will be evaluated by the Yelp community from the type of business being reviewed.
+
+## Data and Methods
+The project makes use of three datasets: yelp_academic_dataset_business.json, yelp_academic_dataset_review.json and yelp_academic_dataset_user.json.
+The major part of my project is data cleaning and treatment in order to build easily evaluable datasets containing information we need. Moreover, basic tools such as ggplot visualization, statistical t-test as well as linear model will be used.
+
+For the sake of space and clarity the full code will be accessible here: '' 
+
+The first step is to divide all the business ids (business data set) into 22 basic Yelp business categories. All other categories proceed from the basic 22. The next step is to update this new data frame with ids of users evaluating a given type of a category (we will use the business ids to identify users inside the review dataset). We add votes and stars for each of business categories (also from the review dataset.)
+```{r, echo=FALSE, results='hide'}
+
+
+#library(jsonlite)
+library(ggplot2)
+library(MASS)
+library(scales)
+```
+
+```{r, echo=FALSE, results='hide', size=8}
+
+### Uncomment everything if you want to execute the code. Remember, the code may run for MANY hours on slower machines.
+
+#business <- fromJSON(sprintf("[%s]", paste(readLines("C:\\Data\\R\\Final Project\\yelp_academic_dataset_business.json"), collapse=",")))
+#save(business,file="C:\\Data\\R\\Final Project\\business.rda")
+#user <- stream_in(file("C:\\Data\\R\\Final Project\\yelp_academic_dataset_user.json"))
+#save(user,file="C:\\Data\\R\\Final Project\\user.rda")
+#review <- stream_in(file("C:\\Data\\R\\Final Project\\yelp_academic_dataset_review.json"))
+#save(review,file="C:\\Data\\R\\Final Project\\review.rda")
+
+
+load("C:\\Data\\R\\Final Project\\review.rda")
+load("C:\\Data\\R\\Final Project\\user.rda")
+load("C:\\Data\\R\\Final Project\\business.rda")
+
+###the distinction useful later for plot building. 
+
+primcat <- c("Active Life", "Arts & Entertainment", "Automotive", "Beauty & Spas", "Bikes", "Education", "Event Planning & Services",
+  "Financial Services", "Food", "Health & Medical", "Home Services", "Hotels & Travel", "Local Flavor", "Local Services", "Nightlife", "Pets",
+  "Professional Services", "Public Services & Government", "Real Estate", "Religious Organizations", "Restaurants", "Shopping")
+
+Cat_names <- c("Active_Life", "Arts_Entertainment", "Automotive", "Beauty_Spas", "Bikes", "Education", "Event_Planning_Services",
+          "Financial_Services", "Food", "Health_Medical", "Home_Services", "Hotels_Travel", "Local_Flavor", "Local_Services", "Nightlife", "Pets",
+          "Professional_Services", "Public_Services_Government", "Real_Estate", "Religious_Organizations", "Restaurants", "Shopping")
+
+
+### Basic data frame with 22 columns and one row with lists of business ids for each category.
+
+#df = data.frame(matrix(vector(), 0, length(primcat),
+#                       dimnames= list(c(), primcat)))
+
+#df <- matrix( list(), 1, length(primcat))
+#colnames(df) <- primcat
+#df[1,] <- list("")
+
+#x <- 0
+#for (name in primcat) {
+#  x <- 0
+#  print(name)
+#  while (x < dim(business)[1] ) {
+#    x <- x+1
+#    if (sum(grep(name, business[x,5][[1]])) > 0) {
+#      df[[1,name]] <- append(df[[1,name]],business[x,1])
+#    }
+#  }
+#}  
+#save(df,file="C:\\Data\\R\\Final Project\\df.rda")
+
+load("C:\\Data\\R\\Final Project\\df.rda")
+head(df,2)
+
+```
+```{r, echo=FALSE, results='hide', size=8}
+### New data frame built on the previous one with lists of user ids, votes and stars as rows. 
+
+#
+# y <- 0
+# MainList <- rbind(df, list(""))
+# while (y < 5) 
+# {
+#   MainList <- rbind(MainList, list(""))
+#   y <- y+1
+# }
+#  
+# for (cat in colnames(df)) {
+#   print(cat)
+#   for (id in df[[1,cat]])
+#   {
+#     x <- review[review$business_id == id,]
+#     MainList[[2,cat]] <- append(MainList[[2,cat]],x$votes$funny)
+#     MainList[[3,cat]] <- append(MainList[[3,cat]],x$votes$useful)
+#     MainList[[4,cat]] <- append(MainList[[4,cat]],x$votes$cool)
+#     MainList[[5,cat]] <- append(MainList[[5,cat]],x$user_id) 
+#     MainList[[6,cat]] <- append(MainList[[6,cat]],x$stars)
+#   }
+#        
+# }
+# MainList <- MainList[-7,]
+# 
+# 
+#rownames(MainList) <- c("ids", "votes$funny", "votes$useful", "votes$cool", "user_id", "stars")
+# 
+#save(MainList,file="C:\\Data\\R\\Final Project\\MainList.rda")
+
+load('C:\\Data\\R\\Final Project\\MainList.rda')
+head(MainList,1)
+
+
+```
+We end up with a dataset with business categories as columns and different sets of values as rows. Each element of the data frame contains a list (business ids, votes, user ids and stars).
+Some interesting patterns are already visible on this level concerning average number of stars per category.
+```{r, echo=FALSE, results='hide', warning=FALSE, size=8}
+### means of values per category
+y <- 2
+means <- data.frame()
+while(y<7){
+  for (cat in primcat) {
+  x <- vector()
+  x <- append(x, mean(as.numeric(na.omit(MainList[[y,cat]])[-c(1)])))
+  means[y, cat] <- x
+  
+}
+y <- y + 1
+}
+
+means_stars <- (means[order(means[6,])])
+```
+
+```{r, echo=FALSE, size=8}
+means_stars[6,]
+```
+Religious Organizations have highest ratings and Real Estate services the lowest ones. 
+
+Are the differences statistically significant? Let us compare the both sides of the spectrum with two Welch two sample t-tests. First of Hotels and Real Estate
+```{r, size=10, echo=FALSE, size=8}
+t.test(as.numeric(na.omit(MainList[[6,"Real Estate"]])), as.numeric(na.omit(MainList[[6,"Hotels & Travel"]])), paired = FALSE)[c(4,3)]
+```
+Then of Local Flavor and Religious Organizations.
+```{r, size=10, echo=FALSE, size=8}
+
+t.test(as.numeric(na.omit(MainList[[6,"Local Flavor"]])), as.numeric(na.omit(MainList[[6,"Religious Organizations"]])), paired = FALSE)[c(4,3)]
+
+
+```
+
+This is the first preliminary result of our investigations. There are some stastically significant differences between the number of stars given to different kinds of activities. 
+
+And what about the perception of reviews? Let us verify whether the same logic applies to votes funny and votes useful. Remember that votes concern not the service itself, but the reviews!
+
+```{r, echo=FALSE,warning=FALSE, size=8}
+print("average of votes$funny")
+means_funny <- (means[order(means[3,])])
+means_funny[3,]
+print("average of votes$useful")
+means_useful <- (means[order(means[4,])])
+means_useful[4,]
+
+```
+Now this is interesting. Automotive services' reviews are not funny at all, while Local Flavor and church reviews seem to be hilarious. Mark that Real Estate reviews are very funny, even though the services itself tend too be poorly judged. (So there is no correlation between funny review and high notes). Curiously, Real Estate reviews are very funny, but not really judged as useful! 
+
+However, this analysis is deeply flawed. We cannot presume that the number of readers is proportional to the number of reviews, and we don't know how frequently reviews are upvoted. Happily there are additional data inside the user dataset contanining information on how much votes and compliments a reviewer gets. Using this data we will try to evaluate the impact of categories on the vote and compliments obtained by reviewers.
+We have to construct a new data frame, this time with a list of user ids. We will add to the existing Yelp user file 22 new columns corresponding to business categories. Each of them will have a number of reviews that a given user wrote in a given business category.
+
+```{r, echo=FALSE, warning=FALSE, size=8}
+### Build a new data frame on the existing user data frame. Add 22 columns for business categories. Rows are individual users with their statistics. The values in new 22 columns correspond to the number of reveiws written by a given user on a given subject. 
+
+
+# '''
+# user <- stream_in(file("C:\\Data\\R\\Final Project\\yelp_academic_dataset_user.json"))
+# UserList <- user[,-c(1,4,6,8,10)] # elimination of encumbering categories
+# '''
+
+# primcat - names of business categories
+# MainList[5,] - list of user ids, based on review file. For each business category there is a list of users who wrote a review concerning it. 
+
+# '''
+# y <- 0
+# for (cat in primcat) {
+#   print(cat)
+#   idlist <- c('')
+#   for (id in MainList[[5,cat]])
+#   {
+#     if (sum(idlist==id) == 0)
+#     {
+#     x <- sum(MainList[[5,cat]] == id)
+#     UserList[UserList$user_id==id, cat] <- x
+#     idlist <- append(idlist, id)
+#     }
+#   }
+#   
+# }
+# head(UserList)
+# save(UserList,file="C:\\Data\\R\\Final Project\\UserList.rda"")
+# '''
+
+
+### some additional cleaning and compliments addition is necessary. 
+load('C:\\Data\\R\\Final Project\\UserList.rda')
+compliments <- UserList[,6]
+compliments[is.na(compliments)] <- 0
+totalCompliments <- apply(compliments, 1, sum)
+UserList[,29] <- totalCompliments
+colnames(UserList)[29] <- "compliments"
+head(UserList[,-c(4,5,6)],1)
+
+```
+
+The next step is to see whether the total number of stars, compliments and votes varies depending on the kind of activities a given user prefers to review. Let us a have a look at some plots. First, the easiest ones, of stars. 
+
+```{r, echo=FALSE, fig.width=2.1, fig.height=2.1, warning=FALSE, size=8}
+
+### replacing NA's with zeros
+newUser <- UserList
+y <- 7
+while(y<28)
+{
+newUser[is.na(newUser[,y]),y] <- 0
+newUser[is.nan(newUser[,y]),y] <- 0
+newUser[(newUser[,y])==Inf,y] <- 0
+y <- y+1
+}
+
+# '''
+# newUser[newUser$votes$funny==0,1]$funny = 0.001
+# newUser[newUser$votes$useful==0,1]$useful = 0.001
+# newUser[newUser$average_stars==0,]$average_stars = 0.001
+# '''
+colnames(newUser)[c(7:28)] <- Cat_names
+
+
+g <- ggplot(newUser, aes(Religious_Organizations, average_stars)) + geom_point(colour="grey50") + geom_smooth(method="lm") + xlab("RO Reviews")
+g
+
+g <- ggplot(newUser, aes(Real_Estate, average_stars)) + geom_point(colour="grey50") + geom_smooth(method="lm")+ xlab("Real Estate Reviews")
+g
+
+### replacing NA's with ones, otherwise log won't work. 
+newUser <- UserList
+y <- 7
+while(y<28)
+{
+newUser[is.na(newUser[,y]),y] <- 1
+newUser[is.nan(newUser[,y]),y] <- 1
+newUser[(newUser[,y])==Inf,y] <- 1
+y <- y+1
+}
+
+
+g <- ggplot(newUser, aes(Restaurants, average_stars)) 
+g + geom_point(colour="grey50") + geom_smooth(method="lm") + xlab("Restaurant Reviews") +
+  scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),
+                labels = trans_format("log10", math_format(10^.x)))
+
+```
+
+Even though their number is comparatively low, our extreme cases seem to be confirmed. More a given user writes reviews of religious institutions, the higher is the average of stars he attributes. The opposite is true for Real Estate reviews.
+
+What about usefulness of reviews? 
+
+```{r, echo=FALSE, fig.width=2.1, fig.height=2.1, warning=FALSE, size=8}
+colnames(UserList)[c(7:28)] <- Cat_names
+newUser <- UserList
+g <- ggplot(newUser, aes(Religious_Organizations, votes$useful)) 
+g + geom_point(colour="grey50") +geom_smooth(method="lm")+ xlab("Religious Org. Reviews") + ylim(0, 20000)
+
+g <- ggplot(newUser, aes(Automotive, votes$useful)) 
+g + geom_point(colour="grey50")+ geom_smooth(method="lm") + xlab("Automotive Reviews") + ylim(0, 20000)
+
+
+y <- 7
+while(y<28)
+{
+newUser[is.na(newUser[,y]),y] <- 0
+newUser[is.nan(newUser[,y]),y] <- 0
+newUser[(newUser[,y])==Inf,y] <- 0
+y <- y+1
+}
+compliments <- UserList[,6]
+compliments[is.na(compliments)] <- 0
+totalCompliments <- apply(compliments, 1, sum)
+
+```
+
+Here the pattern seems to contradict our previous findings. The total number of votes will get higher anyway with the growing number of reviews. We have to quantify this relation with linear model function to get definite answers then.
+
+First, let us have a look on the impact of business categories on the votes qualified as useful.
+```{r}
+x <- lm(newUser$votes$funny ~ ., newUser[,c(7:28)])
+sort(x$coeff)
+``` 
+
+Second, on the impact of business categories on the total number of compliments user gets.
+```{r}
+x <- lm(totalCompliments ~ ., newUser[,c(7:28)])
+sort(x$coeff)
+```
+
+## Results
+
+Our results seem to confirm our initial hypothesis. One's profile statistics not only reflect personal qualities of a given person, but also the subject of his inquiries. However the way it happens does not follow any clear pattern. We see however for sure that someone devoted to evaluating first of all Real Estate business will have considerably fewer compliments than someone reviewing Hotels with an equal involvement. Reviewers will have fewer votes "useful" if they review Financial Services, than if they review Hotels or Religious Organizations. Exactly the same applies to votes funny.
+In other words, it is considerably easier to obtain positive feedback when evaluating certain categories. 
+
+## Discussion
+Many discussion-opening conclusions are possible. First of all, this kind of differences may be closely related to the fact, that much fewer people visit Yelp to read about Financial Institutions or Real Estate, than about Hotels. Yelp is centered around some activities and people are more likely to interact with certain kinds of content. However linear model does not follow simply number of reviews in a given category. Restaurants are by far most reviewed, and they are in the middle of both rankings.
+What is important though is that the study opens a broader reflection for psychologists, sociologists and marketing specialists. Why hotel reviews are often considered funny, while they get low star ratings? Why churchgoers give high notes and their reviews tend to be funny? Are financial institutions more likely to induce negative emotions, and as a consequence Yelp users are much less eager to give positive feedback on their funtioning and on the reviews themselves?  A whole spectrum of combinations is possible. My own study cannot give any definite answers. However it may constitute a basis for much more sophisticated approaches. 
